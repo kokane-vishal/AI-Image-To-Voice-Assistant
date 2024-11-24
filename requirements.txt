@@ -1,0 +1,9 @@
+streamlit
+pillow
+pytesseract
+transformers
+gtts
+torch
+torchvision
+torchaudio
+
