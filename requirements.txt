@@ -1,9 +1,7 @@
 streamlit
-pillow
+Pillow
+langchain
+langchain-google-genai
+google-generativeai
 pytesseract
-transformers
 gtts
-torch
-torchvision
-torchaudio
-
