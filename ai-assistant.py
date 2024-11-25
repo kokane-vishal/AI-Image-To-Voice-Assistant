@@ -1,73 +1,121 @@
 import streamlit as st
 from PIL import Image
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain.prompts import PromptTemplate
+from langchain.chains import LLMChain
+from langchain_core.messages import HumanMessage
 import pytesseract
-from transformers import BlipProcessor, BlipForConditionalGeneration
 from gtts import gTTS
-import os
+import io
+import base64
 
-# Path to Tesseract
-pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
+# Configure Google gemini API Key
+GOOGLE_API_KEY = "YOUR_GOOGLE_GENAI_API_KEY"
+llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", google_api_key=GOOGLE_API_KEY)
 
-# Load the BLIP model for Scene Understanding
-processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-base")
-model = BlipForConditionalGeneration.from_pretrained("Salesforce/blip-image-captioning-base")
+def image_to_base64(image):
+    """Convert PIL Image to Base64 string for Gemini."""
+    buffer = io.BytesIO()
+    image.save(buffer, format='PNG')
+    return base64.b64encode(buffer.getvalue()).decode()
 
-# Define a function for real-time scene understanding (object detection)
-def describe_image(image):
-    # Prepare the image for the BLIP model
-    inputs = processor(images=image, return_tensors="pt")
-    out = model.generate(**inputs)
-    description = processor.decode(out[0], skip_special_tokens=True)
-    return description
+def run_ocr(image):
+    """Run OCR on the uploaded image."""
+    return pytesseract.image_to_string(image).strip()
 
-# Define a function for Text-to-Speech Conversion
+def analyze_image(image, prompt):
+    """Send image and prompt to Gemini for analysis."""
+    try:
+        image_base64 = image_to_base64(image)
+        message = HumanMessage(
+            content=[
+                {"type": "text", "text": prompt},
+                {"type": "image_url", "image_url": f"data:image/png;base64,{image_base64}"}
+            ]
+        )
+        # Synchronous invocation using `invoke`
+        response = llm.invoke([message])
+        return response.content.strip()
+    except Exception as e:
+        return f"Error: {str(e)}"
+
 def text_to_speech(text):
+    """Convert text to speech and return MP3 bytes."""
     tts = gTTS(text=text, lang='en')
-    # Save the speech to a file
-    tts.save("output.mp3")
-    # Play the speech using a streamlit audio player
-    st.audio("output.mp3", format='audio/mp3')
-    os.remove("output.mp3")  # Cleanup the saved file after playing
+    audio_bytes = io.BytesIO()
+    tts.write_to_fp(audio_bytes)
+    audio_bytes.seek(0)
+    return audio_bytes.getvalue()
 
-# Define a function for OCR text extraction from an image
-def extract_text_from_image(image):
-    # Convert the image to text using Tesseract OCR
-    text = pytesseract.image_to_string(image)
-    return text.strip()
-
-# Streamlit UI for the app
+# Main app
 def main():
-    st.title("AI-Powered Assistive Tool")
+    # Setting layout to "centered"
+    st.set_page_config(page_title="AI Assistant", layout="centered")
+    
+    st.title("AI-Powered Assistive Tool for Visually Impaired")
     st.write("Upload an image to analyze and convert its content into audio")
 
-    # Upload an image
-    uploaded_image = st.file_uploader("Choose an image...", type=["jpg", "png", "jpeg"])
+    # Upload the image
+    uploaded_file = st.file_uploader("Upload an image...", type=['jpg', 'jpeg', 'png'])
 
-    if uploaded_image is not None:
-        # Load the image with PIL
-        image = Image.open(uploaded_image)
+    # Reset session state when a new image is uploaded
+    if uploaded_file:
+        if 'last_uploaded_file' in st.session_state and st.session_state.last_uploaded_file != uploaded_file:
+            st.session_state.extracted_text = None
+            st.session_state.summarized_text = None
+            st.session_state.summarize_enabled = False
 
-        # Display the uploaded image
+        # Update last uploaded file
+        st.session_state.last_uploaded_file = uploaded_file  
+
+        image = Image.open(uploaded_file)
         st.image(image, caption="Uploaded Image", use_container_width=True)
 
-        # Button for Scene Understanding (Image Description)
-        if st.button("Describe Image"):
-            # Generate and display a description of the image using BLIP model
-            description = describe_image(image)
-            st.subheader("Image Description:")
-            st.write(description)
-            text_to_speech(description)  # Convert the description to speech
+        # Scene Description Button
+        if st.button("Scene Description"):
+            with st.spinner("Analyzing scene..."):
+                scene_prompt = "Describe this image briefly."
+                scene_description = analyze_image(image, scene_prompt)
+                st.subheader("Scene Description")
+                st.write(scene_description)
+                st.write("Read aloud:")
+                st.audio(text_to_speech(scene_description), format='audio/mp3')
 
-        # Button for Text-to-Speech (Text in Image)
-        if st.button("Extract Text and Convert to Speech"):
-            # Extract text from the image using OCR
-            extracted_text = extract_text_from_image(image)
-            if extracted_text:
-                st.subheader("Extracted Text:")
-                st.write(extracted_text)
-                text_to_speech(extracted_text)  # Convert the extracted text to speech
-            else:
-                st.write("No text found in the image.")
+        # Text Extraction Button
+        if st.button("Extract & Read Text from Image"):
+            with st.spinner("Extracting text..."):
+                extracted_text = run_ocr(image)
+                st.subheader("Extracted Text from Image")
+                
+                if extracted_text:
+                    # Store extracted text in session state
+                    st.session_state.extracted_text = extracted_text
+                    st.write(extracted_text)
+                    st.write("Read aloud:")
+                    st.audio(text_to_speech(extracted_text), format='audio/mp3')
+
+                    # Enable the Summarize Text button only after extraction
+                    st.session_state.summarize_enabled = True
+                else:
+                    st.write("No text detected in the image.")
+
+        # Summarize Text Button, initially disabled
+        summarize_button = st.button("Summarize & Read Extracted Text", disabled=not st.session_state.get('summarize_enabled', False))
+
+        if summarize_button and 'extracted_text' in st.session_state:
+            with st.spinner("Summarizing text..."):
+                template = "Tell what the following text is about and summarize it briefly:\n\n{text}"
+                prompt = PromptTemplate(input_variables=["text"], template=template)
+                chain = LLMChain(llm=llm, prompt=prompt)
+                summary = chain.run(text=st.session_state.extracted_text)
+
+                # Store the summary in session state
+                st.session_state.summarized_text = summary
+                st.subheader("Summary of Extracted Text from Image")
+                st.write(summary)
+                st.write("Read aloud:")
+                st.audio(text_to_speech(summary), format='audio/mp3')
+
 
 if __name__ == "__main__":
     main()
