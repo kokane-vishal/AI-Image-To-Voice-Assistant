@@ -5,6 +5,9 @@ from transformers import BlipProcessor, BlipForConditionalGeneration
 from gtts import gTTS
 import os
 
+# Path to Tesseract
+pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
+
 # Load the BLIP model for Scene Understanding
 processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-base")
 model = BlipForConditionalGeneration.from_pretrained("Salesforce/blip-image-captioning-base")
