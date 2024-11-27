@@ -82,7 +82,7 @@ def main():
         st.image(image, caption="Uploaded Image", use_container_width=True)
 
         # Tabs for different functionalities
-        tabs = st.tabs(["1. Describe Scene", "2. Extract Text (Summarize)", "3. Detect Objects & Obstacles", "4. Personalized Assistance"])
+        tabs = st.tabs(["1-Describe Scene", "2-Extract Text (Summarize)", "3-Detect Objects & Obstacles", "4-Personalized Assistance"])
 
         # Describe Scene Tab
         with tabs[0]:
