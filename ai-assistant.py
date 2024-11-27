@@ -58,7 +58,7 @@ def main():
     uploaded_file = st.sidebar.file_uploader("Choose an image...", type=['jpg', 'jpeg', 'png'])
 
     # Sidebar options for instructions
-    st.sidebar.header("Instructions")
+    st.sidebar.header("Instructions:")
     st.sidebar.markdown(
     """
     1. Upload an image.
