@@ -41,7 +41,7 @@ pip install -r requirements.txt
 ```bash
 streamlit run app.py
 ```
-2. Access the web interface through your browser at
+2. Access the web interface through your browser at: 
 [http://localhost:8501](http://localhost:8501)
 
 3. Use the application to analyze images, extract text, and receive audio feedback.
