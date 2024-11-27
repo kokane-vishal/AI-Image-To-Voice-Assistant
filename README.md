@@ -39,7 +39,7 @@ pip install -r requirements.txt
 1. Start the application:
 
 ```bash
-streamlit run app.py
+streamlit run ai-assistant.py
 ```
 2. Access the web interface through your browser at: 
 [http://localhost:8501](http://localhost:8501)
